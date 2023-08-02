@@ -9,6 +9,7 @@ from oobabot import fancy_logger
 from oobabot import persona
 from oobabot import templates
 from oobabot import types
+from long_term_memory.long_term_memory import get_memories
 
 
 class PromptGenerator:
@@ -89,14 +90,12 @@ class PromptGenerator:
         #   minus the number of chars in the prompt
         #     - without any history
         #     - but with the photo request
-        #
+        #   minus 10% of space for memory insertion?
         est_chars_in_token_space = self.token_space * self.EST_CHARACTERS_PER_TOKEN
         prompt_without_history = self._generate("", self.image_request_made)
 
         # how many chars might we have available for history?
-        available_chars_for_history = est_chars_in_token_space - len(
-            prompt_without_history
-        )
+        available_chars_for_history = 0.9*est_chars_in_token_space - len(prompt_without_history)
         # how many chars do we need for the requested number of
         # lines of history?
         chars_per_history_line = self.EST_CHARACTERS_PER_HISTORY_LINE
@@ -109,7 +108,7 @@ class PromptGenerator:
 
         if available_chars_for_history < required_history_size_chars:
             fancy_logger.get().warning(
-                "AI token space is too small for prompt_prefix and history "
+                "AI token space is too small for prompt_prefix, memory and history "
                 + "by an estimated %d"
                 + " characters.  You may lose history context.  You can save space"
                 + " by shortening the persona or reducing the requested number of"
@@ -121,7 +120,7 @@ class PromptGenerator:
     async def _render_history(
         self,
         message_history: typing.AsyncIterator[types.GenericMessage],
-    ) -> str:
+    ) -> typing.List[str]:
         # add on more history, but only if we have room
         # if we don't have room, we'll just truncate the history
         # by discarding the oldest messages first
@@ -159,18 +158,20 @@ class PromptGenerator:
             history_lines.append(line)
 
         history_lines.reverse()
-        return "".join(history_lines)
+        return history_lines
 
     def _generate(
         self,
         message_history_txt: str,
         image_coming: str,
+        memory_lines: str = ""
     ) -> str:
         prompt = self.template_store.format(
             templates.Templates.PROMPT,
             {
                 templates.TemplateToken.AI_NAME: self.persona.ai_name,
                 templates.TemplateToken.PERSONA: self.persona.persona,
+                templates.TemplateToken.MEMORY: memory_lines,
                 templates.TemplateToken.MESSAGE_HISTORY: message_history_txt,
                 templates.TemplateToken.IMAGE_COMING: image_coming,
             },
@@ -186,10 +187,13 @@ class PromptGenerator:
         """
         Generate a prompt for the AI to respond to.
         """
-        message_history_txt = ""
+        message_history_list = []
         if message_history is not None:
-            message_history_txt = await self._render_history(
+            message_history_list = await self._render_history(
                 message_history,
             )
+        message_history_txt = "".join(message_history_list)
+        #get memories based on the message history
+        memory_lines = get_memories(message_history_list)
         image_coming = self.image_request_made if image_requested else ""
-        return self._generate(message_history_txt, image_coming)
+        return self._generate(message_history_txt, image_coming, memory_lines)
