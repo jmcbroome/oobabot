@@ -3,6 +3,7 @@ import posthog
 import torch
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
+import time
 
 posthog.capture = lambda *args, **kwargs: None
 
@@ -38,11 +39,12 @@ class ChromaCollector(Collecter):
         self.ids = []
 
     def add(self, texts: list[str]):
-        if len(texts) == 0:
-            return
-
-        self.ids = [f"id{i}" for i in range(len(texts))]
-        self.collection.add(documents=texts, ids=self.ids)
+        #set ids to the precise time that the value was added.
+        #this allows ids to be used to sort by time while making them persistent across sessions.
+        #this is somewhat wasteful for memory (storing extra digits) but works as a solution.
+        self.ids = [int("{0:.18g}".format(time.time()).replace(".",'')) for i in range(len(texts))]
+        if len(texts) > 0:
+            self.collection.add(documents=texts, ids=self.ids)
 
     def get_documents_ids_distances(self, search_strings: list[str], n_results: int):
         n_results = min(len(self.ids), n_results)
@@ -61,7 +63,7 @@ class ChromaCollector(Collecter):
         return documents
 
     # Get ids by similarity
-    def get_ids(self, search_strings: list[str], n_results: int) -> list[str]:
+    def get_ids(self, search_strings: list[str], n_results: int) -> list[int]:
         _, ids, _ = self.get_documents_ids_distances(search_strings, n_results)
         return ids
 
@@ -78,7 +80,7 @@ class ChromaCollector(Collecter):
         return [distance * (1 - _id / (len(self.ids) - 1) * time_weight) for _id, distance in zip(ids, distances)]
 
     # Get ids by similarity and then sort by insertion order
-    def get_ids_sorted(self, search_strings: list[str], n_results: int, n_initial: int = None, time_weight: float = 1.0) -> list[str]:
+    def get_ids_sorted(self, search_strings: list[str], n_results: int, n_initial: int = None, time_weight: float = 1.0) -> list[int]:
         do_time_weight = time_weight > 0
         if not (do_time_weight and n_initial is not None):
             n_initial = n_results

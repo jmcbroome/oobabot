@@ -187,7 +187,7 @@ class BotCommands:
                 silent=True,
                 suppress_embeds=True,
             )
-
+            
         fancy_logger.get().debug(
             "Registering commands, sometimes this takes a while..."
         )
