@@ -49,6 +49,7 @@ class TemplateToken(str, enum.Enum):
     MESSAGE_HISTORY = "MESSAGE_HISTORY"
     USER_MESSAGE = "USER_MESSAGE"
     USER_NAME = "USER_NAME"
+    MEMORY = "MEMORY"
 
     def __str__(self):
         return "{" + self.value + "}"
@@ -78,6 +79,7 @@ class TemplateStore:
             [
                 TemplateToken.AI_NAME,
                 TemplateToken.IMAGE_COMING,
+                TemplateToken.MEMORY,
                 TemplateToken.MESSAGE_HISTORY,
                 TemplateToken.PERSONA,
             ],
@@ -152,6 +154,11 @@ class TemplateStore:
             {AI_NAME}.
 
             {PERSONA}
+
+            ### Memories
+            The following are some snippets from previous conversations that serve as additional context.
+            {MEMORY}
+            ### End Memories
 
             All responses you write must be from the point of view of
             {AI_NAME}.
